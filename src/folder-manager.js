@@ -5,16 +5,13 @@ import path from 'path';
 
 const execFileAsync = promisify(execFile);
 
-// --- MOCKS ---
-const SLOT_SRC1 = "/Users/user/Documents/MusicFilteringTestData/Device1/Source";
-const SLOT_FILTERED1 = "/Users/user/Documents/MusicFilteringTestData/Device1/Filtered";
-const SLOT_SRC2 = "/Users/user/Documents/MusicFilteringTestData/Device2/Source";
-const SLOT_FILTERED2 = "/Users/user/Documents/MusicFilteringTestData/Device2/Filtered";
-
 /**
  * Opens a macOS dialog to choose a folder.
  */
-async function pickFolder(prompt) {
+export async function pickFolder(prompt) {
+    // Print the prompt in the terminal before the window pops up
+    console.log(prompt);
+
     const script = `POSIX path of (choose folder with prompt "${prompt}")`;
     try {
         const { stdout } = await execFileAsync('osascript', ['-e', script]);
@@ -27,8 +24,7 @@ async function pickFolder(prompt) {
 /**
  * Creates the root folder and three subfolders.
  */
-export async function createResultFolders() {
-    const root = await pickFolder('Pick or create a folder for filtering results');
+export async function createResultFolders(root) {
     const subfolders = ['mergedSource', 'mergedFiltered', 'assumablyDeleted'];
 
     await fs.mkdir(root, { recursive: true });
@@ -64,7 +60,7 @@ async function copyEntry(srcDir, destDir, entryName) {
 }
 
 // --- FILTER FUNCTIONS ---
-
+//Merge Filtered folders into one
 export async function filterCombineFiltered(slots) {
     console.log('  filter_combine_filtered');
     const sources = [slots.filtered1, slots.filtered2].filter(Boolean);
@@ -80,7 +76,7 @@ export async function filterCombineFiltered(slots) {
         }
     }
 }
-
+//Merge Source folders into one
 export async function filterCombineSource(slots) {
     console.log('  filter_combine_source');
     const sources = [slots.src1, slots.src2].filter(Boolean);
@@ -96,7 +92,11 @@ export async function filterCombineSource(slots) {
         }
     }
 }
-
+//Find folders that was probably deleted
+// - get list of folders that are only in one src folder
+// - exclude files from mergedFiltered
+// - copy dirs from devices into assumablyDeleted
+// - remove the items from the merged source
 export async function filterAssumeDeleted(slots) {
     console.log('  filter_assume_deleted');
 

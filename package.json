@@ -4,6 +4,9 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node app.js",
+    "start:mac": "node app.js mac",
+    "start:win": "node app.js win"
   }
 }
+
