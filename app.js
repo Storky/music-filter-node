@@ -1,15 +1,34 @@
-import { createResultFolders } from './src/folder-manager.js';
+import {
+    createResultFolders,
+    filterCombineFiltered,
+    filterCombineSource,
+    filterAssumeDeleted
+} from './src/folder-manager.js';
 
 async function main() {
     try {
-        console.log('Picking result folder...');
-        const paths = await createResultFolders();
+        // 1. Hardcoded source slots (Mocks)
+        const slots = {
+            src1: "/Users/user/Documents/MusicFilteringTestData/Device1/Source",
+            filtered1: "/Users/user/Documents/MusicFilteringTestData/Device1/Filtered",
+            src2: "/Users/user/Documents/MusicFilteringTestData/Device2/Source",
+            filtered2: "/Users/user/Documents/MusicFilteringTestData/Device2/Filtered",
+        };
 
-        console.log('\nCreated successfully:');
-        console.log(`  Root:             ${paths.root}`);
-        console.log(`  Merged Source:    ${paths.mergedSource}`);
-        console.log(`  Merged Filtered:  ${paths.mergedFiltered}`);
-        console.log(`  Assumably Deleted:${paths.assumablyDeleted}`);
+        // 2. Pick and create destination folders
+        console.log('Picking result folder:');
+        const resultPaths = await createResultFolders();
+
+        // Add result paths to slots object
+        Object.assign(slots, resultPaths);
+
+        // 3. Run merges
+        console.log('\nMerging devices...');
+        await filterCombineFiltered(slots);
+        await filterCombineSource(slots);
+        await filterAssumeDeleted(slots);
+
+        console.log('\nDone.');
     } catch (error) {
         console.error(`\nError: ${error.message}`);
         process.exit(1);
