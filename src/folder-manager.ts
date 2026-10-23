@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
+import { logger } from './logger.js'; // Import the new logger
 
 const execFileAsync = promisify(execFile);
 
@@ -27,7 +28,7 @@ export interface ResultPaths {
  * Opens a macOS dialog to choose a folder.
  */
 export async function pickFolder(prompt: string): Promise<string> {
-    console.log(prompt);
+    logger.info(prompt);
 
     const script = `POSIX path of (choose folder with prompt "${prompt}")`;
     try {
@@ -45,14 +46,14 @@ export async function createResultFolders(root: string): Promise<ResultPaths> {
     const subfolders = ['mergedSource', 'mergedFiltered', 'assumablyDeleted'] as const;
 
     await fs.mkdir(root, { recursive: true });
-    console.log(`  created: ${root}`);
+    logger.created(root);
 
     const paths: Partial<ResultPaths> = { root };
 
     for (const sub of subfolders) {
         const fullPath = path.join(root, sub);
         await fs.mkdir(fullPath, { recursive: true });
-        console.log(`  created: ${fullPath}`);
+        logger.created(fullPath);
         paths[sub] = fullPath;
     }
 
@@ -79,7 +80,7 @@ async function copyEntry(srcDir: string, destDir: string, entryName: string): Pr
 // --- FILTER FUNCTIONS ---
 
 export async function filterCombineFiltered(slots: Slots): Promise<void> {
-    console.log('  filter_combine_filtered');
+    logger.step('filter_combine_filtered');
     const sources = [slots.filtered1, slots.filtered2].filter(Boolean) as string[];
     const dest = slots.mergedFiltered as string;
 
@@ -87,16 +88,16 @@ export async function filterCombineFiltered(slots: Slots): Promise<void> {
         const entries = await getDirEntries(src);
         if (entries.length === 0) continue;
 
-        console.log(`merging: ${src} -> ${dest}`);
+        logger.merge(src, dest);
         for (const entry of entries) {
             await copyEntry(src, dest, entry);
-            console.log(`  copied: ${entry}`);
+            logger.copied(entry);
         }
     }
 }
 
 export async function filterCombineSource(slots: Slots): Promise<void> {
-    console.log('  filter_combine_source');
+    logger.step('filter_combine_source');
     const sources = [slots.src1, slots.src2].filter(Boolean) as string[];
     const dest = slots.mergedSource as string;
 
@@ -104,16 +105,16 @@ export async function filterCombineSource(slots: Slots): Promise<void> {
         const entries = await getDirEntries(src);
         if (entries.length === 0) continue;
 
-        console.log(`merging: ${src} -> ${dest}`);
+        logger.merge(src, dest);
         for (const entry of entries) {
             await copyEntry(src, dest, entry);
-            console.log(`  copied: ${entry}`);
+            logger.copied(entry);
         }
     }
 }
 
 export async function filterAssumeDeleted(slots: Slots): Promise<void> {
-    console.log('  filter_assume_deleted');
+    logger.step('filter_assume_deleted');
 
     const src1 = slots.src1 as string;
     const src2 = slots.src2 as string;
@@ -130,17 +131,17 @@ export async function filterAssumeDeleted(slots: Slots): Promise<void> {
         ...src2List.filter(x => !src1List.includes(x))
     ];
 
-    console.log('candidates (in exactly one source):');
-    candidates.forEach(c => console.log(`  ${c}`));
+    logger.listHeader('candidates (in exactly one source):');
+    candidates.forEach(c => logger.listItem(c));
 
     const filteredList = await getDirEntries(mergedFiltered);
 
     // Exclude those present in mergedFiltered
     const finalList = candidates.filter(c => !filteredList.includes(c));
 
-    console.log('final (assumably deleted):');
+    logger.listHeader('final (assumably deleted):');
     for (const entry of finalList) {
-        console.log(`  ${entry}`);
+        logger.listItem(entry);
 
         const inSrc1 = src1List.includes(entry);
         const fromSrc = inSrc1 ? path.join(src1, entry) : path.join(src2, entry);
@@ -148,17 +149,17 @@ export async function filterAssumeDeleted(slots: Slots): Promise<void> {
 
         // Copy the directory itself into assumablyDeleted
         await fs.cp(fromSrc, dest, { recursive: true });
-        console.log(`    copied from: ${fromSrc}`);
+        logger.copiedFrom(fromSrc);
     }
 
-    console.log('removing assumably-deleted entries from mergedSource');
+    logger.info('removing assumably-deleted entries from mergedSource');
     const mergedSourceList = await getDirEntries(mergedSource);
 
     for (const entry of finalList) {
         if (mergedSourceList.includes(entry)) {
             const target = path.join(mergedSource, entry);
             await fs.rm(target, { recursive: true, force: true });
-            console.log(`  removed from mergedSource: ${entry}`);
+            logger.removed(entry);
         }
     }
 }

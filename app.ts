@@ -5,7 +5,8 @@ import {
     filterCombineSource,
     filterAssumeDeleted,
     Slots
-} from './src/folder-manager.js'; // Keep .js extension for ESM resolution
+} from './src/folder-manager.js';
+import { logger } from './src/logger.js';
 
 async function main(): Promise<void> {
     try {
@@ -14,7 +15,7 @@ async function main(): Promise<void> {
         let slots: Slots = {};
 
         if (!osType) {
-            console.log('No OS argument provided. Picking folders manually...');
+            logger.info('No OS argument provided. Picking folders manually...');
             slots.src1 = await pickFolder('Pick src1 folder:');
             slots.filtered1 = await pickFolder('Pick filtered1 folder:');
             slots.src2 = await pickFolder('Pick src2 folder:');
@@ -37,25 +38,22 @@ async function main(): Promise<void> {
         }
 
         // 2. Pick and create destination folders
-        console.log(`\nPicking result folder (Target: ${osType || 'manual'}):`);
+        logger.section(`Picking result folder (Target: ${osType || 'manual'}):`);
         const chosenRoot = await pickFolder('Pick or create a folder for filtering results');
 
         const resultPaths = await createResultFolders(chosenRoot);
         Object.assign(slots, resultPaths);
 
         // 3. Run merges
-        console.log('\nMerging devices...');
+        logger.section('Merging devices...');
         await filterCombineFiltered(slots);
         await filterCombineSource(slots);
         await filterAssumeDeleted(slots);
 
-        console.log('\nDone.');
+        logger.success('Done.');
     } catch (error) {
-        if (error instanceof Error) {
-            console.error(`\nError: ${error.message}`);
-        } else {
-            console.error(`\nError: Unknown error`);
-        }
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(msg);
         process.exit(1);
     }
 }
