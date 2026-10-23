@@ -2,11 +2,16 @@
   "name": "music-filter",
   "version": "1.0.0",
   "type": "module",
-  "main": "app.js",
+  "main": "dist/app.js",
   "scripts": {
-    "start": "node app.js",
-    "start:mac": "node app.js mac",
-    "start:win": "node app.js win"
+    "start": "tsx app.ts",
+    "start:mac": "tsx app.ts mac",
+    "start:win": "tsx app.ts win",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
   }
 }
-
