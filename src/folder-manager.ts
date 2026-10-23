@@ -5,11 +5,28 @@ import path from 'path';
 
 const execFileAsync = promisify(execFile);
 
+export interface Slots {
+    src1?: string;
+    filtered1?: string;
+    src2?: string;
+    filtered2?: string;
+    root?: string;
+    mergedSource?: string;
+    mergedFiltered?: string;
+    assumablyDeleted?: string;
+}
+
+export interface ResultPaths {
+    root: string;
+    mergedSource: string;
+    mergedFiltered: string;
+    assumablyDeleted: string;
+}
+
 /**
  * Opens a macOS dialog to choose a folder.
  */
-export async function pickFolder(prompt) {
-    // Print the prompt in the terminal before the window pops up
+export async function pickFolder(prompt: string): Promise<string> {
     console.log(prompt);
 
     const script = `POSIX path of (choose folder with prompt "${prompt}")`;
@@ -24,13 +41,13 @@ export async function pickFolder(prompt) {
 /**
  * Creates the root folder and three subfolders.
  */
-export async function createResultFolders(root) {
-    const subfolders = ['mergedSource', 'mergedFiltered', 'assumablyDeleted'];
+export async function createResultFolders(root: string): Promise<ResultPaths> {
+    const subfolders = ['mergedSource', 'mergedFiltered', 'assumablyDeleted'] as const;
 
     await fs.mkdir(root, { recursive: true });
     console.log(`  created: ${root}`);
 
-    const paths = { root };
+    const paths: Partial<ResultPaths> = { root };
 
     for (const sub of subfolders) {
         const fullPath = path.join(root, sub);
@@ -39,69 +56,73 @@ export async function createResultFolders(root) {
         paths[sub] = fullPath;
     }
 
-    return paths;
+    return paths as ResultPaths;
 }
 
 // --- HELPERS ---
 
-async function getDirEntries(dirPath) {
+async function getDirEntries(dirPath: string): Promise<string[]> {
     try {
         const entries = await fs.readdir(dirPath, { withFileTypes: true });
         return entries.filter(e => e.isDirectory()).map(e => e.name);
     } catch {
-        return []; // return empty if dir doesn't exist
+        return [];
     }
 }
 
-async function copyEntry(srcDir, destDir, entryName) {
+async function copyEntry(srcDir: string, destDir: string, entryName: string): Promise<void> {
     const src = path.join(srcDir, entryName);
     const dest = path.join(destDir, entryName);
     await fs.cp(src, dest, { recursive: true });
 }
 
 // --- FILTER FUNCTIONS ---
-//Merge Filtered folders into one
-export async function filterCombineFiltered(slots) {
+
+export async function filterCombineFiltered(slots: Slots): Promise<void> {
     console.log('  filter_combine_filtered');
-    const sources = [slots.filtered1, slots.filtered2].filter(Boolean);
+    const sources = [slots.filtered1, slots.filtered2].filter(Boolean) as string[];
+    const dest = slots.mergedFiltered as string;
 
     for (const src of sources) {
         const entries = await getDirEntries(src);
         if (entries.length === 0) continue;
 
-        console.log(`merging: ${src} -> ${slots.mergedFiltered}`);
+        console.log(`merging: ${src} -> ${dest}`);
         for (const entry of entries) {
-            await copyEntry(src, slots.mergedFiltered, entry);
+            await copyEntry(src, dest, entry);
             console.log(`  copied: ${entry}`);
         }
     }
 }
-//Merge Source folders into one
-export async function filterCombineSource(slots) {
+
+export async function filterCombineSource(slots: Slots): Promise<void> {
     console.log('  filter_combine_source');
-    const sources = [slots.src1, slots.src2].filter(Boolean);
+    const sources = [slots.src1, slots.src2].filter(Boolean) as string[];
+    const dest = slots.mergedSource as string;
 
     for (const src of sources) {
         const entries = await getDirEntries(src);
         if (entries.length === 0) continue;
 
-        console.log(`merging: ${src} -> ${slots.mergedSource}`);
+        console.log(`merging: ${src} -> ${dest}`);
         for (const entry of entries) {
-            await copyEntry(src, slots.mergedSource, entry);
+            await copyEntry(src, dest, entry);
             console.log(`  copied: ${entry}`);
         }
     }
 }
-//Find folders that was probably deleted
-// - get list of folders that are only in one src folder
-// - exclude files from mergedFiltered
-// - copy dirs from devices into assumablyDeleted
-// - remove the items from the merged source
-export async function filterAssumeDeleted(slots) {
+
+export async function filterAssumeDeleted(slots: Slots): Promise<void> {
     console.log('  filter_assume_deleted');
 
-    const src1List = await getDirEntries(slots.src1);
-    const src2List = await getDirEntries(slots.src2);
+    const src1 = slots.src1 as string;
+    const src2 = slots.src2 as string;
+    const mergedFiltered = slots.mergedFiltered as string;
+    const assumablyDeleted = slots.assumablyDeleted as string;
+    const mergedSource = slots.mergedSource as string;
+
+    const src1List = await getDirEntries(src1);
+    const src2List = await getDirEntries(src2);
 
     // Find items in exactly one source
     const candidates = [
@@ -112,7 +133,7 @@ export async function filterAssumeDeleted(slots) {
     console.log('candidates (in exactly one source):');
     candidates.forEach(c => console.log(`  ${c}`));
 
-    const filteredList = await getDirEntries(slots.mergedFiltered);
+    const filteredList = await getDirEntries(mergedFiltered);
 
     // Exclude those present in mergedFiltered
     const finalList = candidates.filter(c => !filteredList.includes(c));
@@ -122,8 +143,8 @@ export async function filterAssumeDeleted(slots) {
         console.log(`  ${entry}`);
 
         const inSrc1 = src1List.includes(entry);
-        const fromSrc = inSrc1 ? path.join(slots.src1, entry) : path.join(slots.src2, entry);
-        const dest = path.join(slots.assumablyDeleted, entry);
+        const fromSrc = inSrc1 ? path.join(src1, entry) : path.join(src2, entry);
+        const dest = path.join(assumablyDeleted, entry);
 
         // Copy the directory itself into assumablyDeleted
         await fs.cp(fromSrc, dest, { recursive: true });
@@ -131,11 +152,11 @@ export async function filterAssumeDeleted(slots) {
     }
 
     console.log('removing assumably-deleted entries from mergedSource');
-    const mergedSourceList = await getDirEntries(slots.mergedSource);
+    const mergedSourceList = await getDirEntries(mergedSource);
 
     for (const entry of finalList) {
         if (mergedSourceList.includes(entry)) {
-            const target = path.join(slots.mergedSource, entry);
+            const target = path.join(mergedSource, entry);
             await fs.rm(target, { recursive: true, force: true });
             console.log(`  removed from mergedSource: ${entry}`);
         }

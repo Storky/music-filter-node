@@ -3,14 +3,15 @@ import {
     createResultFolders,
     filterCombineFiltered,
     filterCombineSource,
-    filterAssumeDeleted
-} from './src/folder-manager.js';
+    filterAssumeDeleted,
+    Slots
+} from './src/folder-manager.js'; // Keep .js extension for ESM resolution
 
-async function main() {
+async function main(): Promise<void> {
     try {
         // 1. Determine slots based on OS argument
         const osType = process.argv[2];
-        let slots = {};
+        let slots: Slots = {};
 
         if (!osType) {
             console.log('No OS argument provided. Picking folders manually...');
@@ -50,7 +51,11 @@ async function main() {
 
         console.log('\nDone.');
     } catch (error) {
-        console.error(`\nError: ${error.message}`);
+        if (error instanceof Error) {
+            console.error(`\nError: ${error.message}`);
+        } else {
+            console.error(`\nError: Unknown error`);
+        }
         process.exit(1);
     }
 }
